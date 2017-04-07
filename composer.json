@@ -1,0 +1,10 @@
+{
+  "name": "rw/jwt",
+  "minimum-stability": "dev",
+  "autoload": {
+    "psr-4" : {
+      "RW\\" : "src/"
+    }
+  },
+  "version": "v1.1"
+}
