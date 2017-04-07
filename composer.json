@@ -1,10 +1,18 @@
 {
   "name": "rw/jwt",
-  "minimum-stability": "dev",
+  "type": "library",
+  "description": "handle JWT token and validation",
+  "homepage": "https://github.com/cosmostail/jwt",
+  "license": "Apache License 2.0",
+  "authors": [
+    {
+      "name": "Scott Wang",
+      "email": "swang@revenuewire.com"
+    }
+  ],
   "autoload": {
     "psr-4" : {
       "RW\\" : "src/"
     }
-  },
-  "version": "v1.1"
+  }
 }
