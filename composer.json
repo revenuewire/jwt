@@ -1,5 +1,5 @@
 {
-  "name": "rw/jwt",
+  "name": "revenuewire/jwt",
   "type": "library",
   "description": "handle JWT token and validation",
   "homepage": "https://github.com/cosmostail/jwt",
