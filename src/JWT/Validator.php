@@ -36,6 +36,25 @@ class Validator
     }
 
     /**
+     * Get Issuer
+     *
+     * @return null
+     */
+    public function getIssuer()
+    {
+        return !empty($this->claims['iss']) ? $this->claims['iss'] : null;
+    }
+
+    /**
+     * Get Audience
+     *
+     * @return null
+     */
+    public function getAudience()
+    {
+        return !empty($this->claims['aud']) ? $this->claims['aud'] : null;
+    }
+    /**
      * Get Kid
      *
      * @return string/null
