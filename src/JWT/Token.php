@@ -69,7 +69,7 @@ class Token
      */
     public function setPayload(array $payload)
     {
-        $this->claims = array_merge($payload, $this->claims);
+        $this->claims = array_merge_recursive($this->claims, $payload);
         return $this;
     }
 
