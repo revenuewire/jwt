@@ -22,7 +22,7 @@ class Token
      * @param null $expiry
      * @param string $kid
      */
-    function __construct($secret, $alg = 'sha256', $expiry = null, $kid = "")
+    function __construct($secret = null, $alg = 'sha256', $expiry = null, $kid = "")
     {
         $this->headers = array(
             'typ' => 'JWT',
@@ -43,16 +43,18 @@ class Token
             $this->expiry = $expiry;
         }
 
-        if (strlen($secret) < 8) {
-            throw new \InvalidArgumentException("Secret too short!");
-        }
+        if ($secret !== null) {
+            if (strlen($secret) < 8) {
+                throw new \InvalidArgumentException("Secret too short!");
+            }
 
-        if (!preg_match("#[0-9]+#", $secret)) {
-            throw new \InvalidArgumentException("Secret must include at least one number!");
-        }
+            if (!preg_match("#[0-9]+#", $secret)) {
+                throw new \InvalidArgumentException("Secret must include at least one number!");
+            }
 
-        if (!preg_match("#[a-zA-Z]+#", $secret)) {
-            throw new \InvalidArgumentException("Secret must include at least one letter!");
+            if (!preg_match("#[a-zA-Z]+#", $secret)) {
+                throw new \InvalidArgumentException("Secret must include at least one letter!");
+            }
         }
 
         $this->secret = $secret;
