@@ -9,6 +9,7 @@ class Token
     public $claims = array();
     private $expiry;
     private $secret = null;
+    private $cacheKey = null;
 
     private $kmsConfig = [ "region" => "us-west-2", "version" => "2014-11-01", "alias" => "rw-jwt" ];
     private $context = ["type" => "JWT-KMS", "version" => "v1.0.0"];
@@ -84,6 +85,30 @@ class Token
         $jwt->headers = $headers;
 
         return $jwt;
+    }
+
+    /**
+     * Set Cache Key
+     * @param $key
+     * @return $this
+     */
+    public function setCacheKey($key)
+    {
+        if (empty($key) || !ctype_alnum($key)) {
+            throw new \InvalidArgumentException("Invalid cache key.");
+        }
+        $this->cacheKey = $key;
+
+        return $this;
+    }
+
+    /**
+     * Get Cache Key
+     * @return null
+     */
+    public function getCacheKey()
+    {
+        return $this->cacheKey;
     }
 
     /**
@@ -318,16 +343,14 @@ class Token
     /**
      * Get Token
      *
-     * @param $cacheKey
-     *
      * @return string
      */
-    public function getToken($cacheKey = null)
+    public function getToken()
     {
         if (empty($this->getSecret())) {
-            if ($cacheKey !== null && self::isCacheExists($cacheKey . "-key") && self::isCacheExists($cacheKey . "-secret")) {
-                $kmsKey = self::getCache($cacheKey . "-key");
-                $secret = base64_decode(self::getCache($cacheKey . "-secret"));
+            if (!empty($this->getCacheKey()) && self::isCacheExists($this->getCacheKey() . "-key") && self::isCacheExists($this->getCacheKey() . "-secret")) {
+                $kmsKey = self::getCache($this->getCacheKey() . "-key");
+                $secret = base64_decode(self::getCache($this->getCacheKey() . "-secret"));
             } else {
                 $kmsClinet = new KmsClient([
                     "region" => $this->kmsConfig['region'],
@@ -338,9 +361,9 @@ class Token
                 $kmsKey = base64_encode($kmsResult->get("CiphertextBlob"));
                 $secret = $kmsResult->get('Plaintext');
 
-                if ($cacheKey !== null) {
-                    self::setCache($cacheKey . "-key", $kmsKey);
-                    self::setCache($cacheKey . "-secret", base64_encode($secret));
+                if (!empty($this->getCacheKey())) {
+                    self::setCache($this->getCacheKey() . "-key", $kmsKey);
+                    self::setCache($this->getCacheKey() . "-secret", base64_encode($secret));
                 }
             }
 
