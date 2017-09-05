@@ -1,7 +1,7 @@
 # JWT
 [![Build Status](https://travis-ci.org/revenuewire/jwt.svg?branch=master)](https://travis-ci.org/revenuewire/jwt)
 
-####JWT Token
+### JWT Token
 ```php
 require_once ("vendor/autoload.php");
 
@@ -14,7 +14,7 @@ $token = $jwt->getToken("super-01-secret", null);
 echo $token . "\n";
 ```
 
-####JWT Validation
+### JWT Validation
 ```php
 $validator = \RW\JWT\Token::init($token, "super-01-secret");
 $payload = $validator->getPayload();
