@@ -7,17 +7,17 @@
  */
 require_once ("vendor/autoload.php");
 
-$jwt = new \RW\JWT\Token("ad823js91&2s;", "sha256", 5, "hello");
+$jwt = new \RW\JWT\Token();
 $jwt->setIssuer('carambola')
     ->setAudience('jackfruit')
-    ->setPayload(array("hello" => "world"));
-$token = $jwt->getToken();
+    ->setPayload(array("hello" => "world"))
+    ->setExpiry(5);
+
+$token = $jwt->getToken("my-jwt-2");
 echo $token . "\n";
 
-$validator = new \RW\JWT\Validator($token);
-
 for($i = 0; $i < 10; $i++) {
-    var_dump($validator->isValidToken("sha256", "ad823js91&2s;"));
+    $validator = \RW\JWT\Token::init($token);
     var_dump($validator->getPayload());
     sleep(1);
 }

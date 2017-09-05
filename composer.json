@@ -14,5 +14,8 @@
     "psr-4" : {
       "RW\\" : "src/"
     }
+  },
+  "require": {
+    "aws/aws-sdk-php": "^3.36"
   }
 }

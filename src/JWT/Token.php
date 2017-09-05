@@ -1,65 +1,122 @@
 <?php
 namespace RW\JWT;
 
+use Aws\Kms\KmsClient;
+
 class Token
 {
-    public static $algs = array(
-        'sha256' => array('f' => 'hash_hmac', 't' => 'HS256'),
-    );
-
     public $headers = array();
     public $claims = array();
-    private $secret;
     private $expiry;
-    private $kid;
-    private $alg;
+
+    private $kmsConfig = [ "region" => "us-west-2", "version" => "2014-11-01", "alias" => "rw-jwt" ];
+    private $context = ["type" => "JWT-KMS", "version" => "v1.0.0"];
 
     /**
      * JWT constructor.
-     *
-     * @param $secret
-     * @param string $alg
-     * @param null $expiry
-     * @param string $kid
      */
-    function __construct($secret = null, $alg = 'sha256', $expiry = null, $kid = "")
+    function __construct()
     {
         $this->headers = array(
             'typ' => 'JWT',
+            'alg' => 'HS256',
         );
 
-        if (!empty($kid)) {
-            $this->headers['kid'] = $kid;
-            $this->kid = $kid;
-        }
-
-        if (empty(self::$algs[$alg])) {
-            throw new \InvalidArgumentException("Algorithm is not supported!");
-        }
-        $this->alg = $alg;
-        $this->headers['alg'] = self::$algs[$alg]['t'];
-
-        if (!empty($expiry)) {
-            $this->expiry = $expiry;
-        }
-
-        if ($secret !== null) {
-            if (strlen($secret) < 8) {
-                throw new \InvalidArgumentException("Secret too short!");
-            }
-
-            if (!preg_match("#[0-9]+#", $secret)) {
-                throw new \InvalidArgumentException("Secret must include at least one number!");
-            }
-
-            if (!preg_match("#[a-zA-Z]+#", $secret)) {
-                throw new \InvalidArgumentException("Secret must include at least one letter!");
-            }
-        }
-
-        $this->secret = $secret;
-
         return $this;
+    }
+
+    /**
+     * Init token
+     *
+     * @param $token
+     * @return Token
+     */
+    public static function init($token)
+    {
+        $fields = explode('.', $token);
+        if (count($fields) != 3) {
+            throw new \InvalidArgumentException("Invalid Toke!");
+        }
+        list($headers64, $claims64, $signature) = $fields;
+
+        $headers = json_decode(self::base64urlDecode($headers64), true);
+
+        if (self::isCacheExists("jwt." . $headers['kms']['key'])) {
+            $secret = base64_decode(self::getCache("jwt." . $headers['kms']['key']));
+        } else {
+            $kmsClinet = new KmsClient([
+                "region" => $headers['kms']['region'],
+                "version" => $headers['kms']['version'],
+            ]);
+            $result = $kmsClinet->decrypt([
+                'CiphertextBlob' => base64_decode($headers['kms']['key']),
+                'EncryptionContext' => $headers['kms']['context']
+            ]);
+            $secret = $result->get('Plaintext');
+            self::setCache("jwt." . $headers['kms']['key'], base64_encode($secret), 0);
+        }
+
+        $validationToken = implode('.', array($headers64, $claims64));
+        if ($signature !== self::getSignature($validationToken, $secret)) {
+            throw new \InvalidArgumentException("Invalid token");
+        }
+
+        $claims = json_decode(self::base64urlDecode($claims64), true);
+        if (!empty($claims['exp']) && $claims['exp'] > 0 && $claims['exp'] < time()) {
+            throw new \InvalidArgumentException("Token expired.");
+        }
+
+        /**
+         * After this point, the token is validated and we can return the token object
+         */
+        $jwt = new Token();
+
+        $jwt->claims = $claims;
+        $jwt->headers = $headers;
+
+        return $jwt;
+    }
+
+    /**
+     * Set KMS configuration
+     *
+     * @param array $kms
+     * @return $this
+     */
+    public function setKMS(array $kms)
+    {
+        $this->kmsConfig = array_merge_recursive($this->kmsConfig, $kms);
+        return $this;
+    }
+
+    /**
+     * Set Context
+     * @param array $context
+     * @return $this
+     */
+    public function setContext(array $context)
+    {
+        $this->context = array_merge_recursive($this->context, $context);
+        return $this;
+    }
+
+    /**
+     * get Context
+     *
+     * @return array
+     */
+    public function getContext()
+    {
+        return $this->context;
+    }
+
+    /**
+     * Set # of seconds before the token considered expire
+     * @param $seconds
+     */
+    public function setExpiry($seconds)
+    {
+        $this->expiry = $seconds;
     }
 
     /**
@@ -199,66 +256,165 @@ class Token
     }
 
     /**
+     * Set KMS Header
+     *
+     * @param $key
+     * @return $this
+     */
+    private function setKMSHeaders($key)
+    {
+        $this->headers['kms'] = [
+            'region' => $this->kmsConfig['region'],
+            'version' => $this->kmsConfig['version'],
+            'alias' => $this->kmsConfig['alias'],
+            'context' => $this->getContext(),
+            'key' => $key
+        ];
+        return $this;
+    }
+
+    /**
      * Get Token
+     * @param $cacheKey
      *
      * @return string
      */
-    public function getToken()
+    public function getToken($cacheKey = null)
     {
+        if ($cacheKey !== null && self::isCacheExists($cacheKey . "-key") && self::isCacheExists($cacheKey. "-secret")) {
+            $kmsKey = self::getCache($cacheKey . "-key");
+            $secret = base64_decode(self::getCache($cacheKey . "-secret"));
+        } else {
+            $kmsClinet = new KmsClient([
+                "region" => $this->kmsConfig['region'],
+                "version" => $this->kmsConfig['version'],
+            ]);
+            $kmsData = ["KeyId" => "alias/" . $this->kmsConfig['alias'], "KeySpec" => "AES_256", "EncryptionContext" => $this->getContext()];
+            $kmsResult = $kmsClinet->generateDataKey($kmsData);
+            $kmsKey = base64_encode($kmsResult->get("CiphertextBlob"));
+            $secret = $kmsResult->get('Plaintext');
+
+            if ($cacheKey !== null) {
+                self::setCache($cacheKey . "-key", $kmsKey);
+                self::setCache($cacheKey . "-secret", base64_encode($secret));
+            }
+        }
+
+        $this->setKMSHeaders($kmsKey);
         $this->setId(uniqid("JWT", true));
         $this->setIssueAt();
         if (!empty($this->expiry)) {
             $this->setExpirationTime(time() + $this->expiry);
         }
 
-        $header = Utils::base64urlEncode(json_encode($this->headers));
-        $payload = Utils::base64urlEncode(json_encode($this->claims));
+        $header = self::base64urlEncode(json_encode($this->headers));
+        $payload = self::base64urlEncode(json_encode($this->claims));
         $token = $header . '.' . $payload;
-        $signature = $this->getSignature($token);
+        $signature = self::getSignature($token, $secret);
 
         return $token . '.' . $signature;
+    }
+
+    /**
+     * Get Issuer
+     *
+     * @return null
+     */
+    public function getIssuer()
+    {
+        return !empty($this->claims['iss']) ? $this->claims['iss'] : null;
+    }
+
+    /**
+     * Get Audience
+     *
+     * @return null
+     */
+    public function getAudience()
+    {
+        return !empty($this->claims['aud']) ? $this->claims['aud'] : null;
+    }
+
+    /**
+     * Get Payload
+     *
+     * @return mixed
+     */
+    public function getPayload()
+    {
+        return $this->claims;
     }
 
     /**
      * Get the Signature
      *
      * @param $token
+     * @param $secret
      *
      * @return string
      */
-    private function getSignature($token)
+    private static function getSignature($token, $secret)
     {
-        return Utils::base64urlEncode(hash_hmac($this->alg, $token, $this->secret, true));
+        return self::base64urlEncode(hash_hmac("sha256", $token, $secret, true));
     }
 
+    /**
+     * Set Cache
+     *
+     * @param $k
+     * @param $v
+     */
+    private static function setCache($k, $v, $ttl = 3600)
+    {
+        apcu_store($k, $v, 3600);
+    }
 
     /**
-     * Check if the token is valid
+     * Get Cache
      *
-     * @param $token
-     *
-     * @return bool
+     * @param $k
+     * @return mixed
      */
-//    public function isValidToken($token)
-//    {
-//        $fields = explode('.', $token);
-//        if (count($fields) != 3) {
-//            return false;
-//        }
-//        list($headers, $claims, $signature) = $fields;
-//
-//        $token = $headers . '.' . $claims;
-//
-//        return ($signature == $this->getSignature($token) && !$this->isTokenExpired());
-//    }
+    private static function getCache($k)
+    {
+        return apcu_fetch($k);
+    }
 
     /**
-     * Check if Token expired.
+     * Is Cache Exists
      *
-     * @return bool
+     * @param $k
+     * @return bool|string[]
      */
-//    public function isTokenExpired()
-//    {
-//        return (!empty($this->claims['exp']) && $this->claims['exp'] < time());
-//    }
+    private static function isCacheExists($k)
+    {
+        return apcu_exists($k);
+    }
+
+    /**
+     * To Encode a url
+     *
+     * @param $data
+     * @return string
+     */
+    public static function base64urlEncode($data)
+    {
+        return str_replace('=', '', strtr(base64_encode($data), '+/', '-_'));
+    }
+
+    /**
+     * To Decode a url
+     *
+     * @param $data
+     * @return string
+     */
+    public static function base64urlDecode($data)
+    {
+        $remainder = strlen($data) % 4;
+        if ($remainder) {
+            $padlen = 4 - $remainder;
+            $data .= str_repeat('=', $padlen);
+        }
+        return base64_decode(strtr($data, '-_', '+/'));
+    }
 }
