@@ -29,9 +29,11 @@ class Token
      * Init token
      *
      * @param $token
+     * @param $secret
+     *
      * @return Token
      */
-    public static function init($token)
+    public static function init($token, $secret = null)
     {
         $fields = explode('.', $token);
         if (count($fields) != 3) {
@@ -41,19 +43,25 @@ class Token
 
         $headers = json_decode(self::base64urlDecode($headers64), true);
 
-        if (self::isCacheExists("jwt." . $headers['kms']['key'])) {
-            $secret = base64_decode(self::getCache("jwt." . $headers['kms']['key']));
-        } else {
-            $kmsClinet = new KmsClient([
-                "region" => $headers['kms']['region'],
-                "version" => $headers['kms']['version'],
-            ]);
-            $result = $kmsClinet->decrypt([
-                'CiphertextBlob' => base64_decode($headers['kms']['key']),
-                'EncryptionContext' => $headers['kms']['context']
-            ]);
-            $secret = $result->get('Plaintext');
-            self::setCache("jwt." . $headers['kms']['key'], base64_encode($secret), 0);
+        if (empty($secret)) {
+            if (empty($headers['kms']['key'])) {
+                throw new \InvalidArgumentException("KMS key must exists if secret is empty.");
+            }
+
+            if (self::isCacheExists("jwt." . $headers['kms']['key'])) {
+                $secret = base64_decode(self::getCache("jwt." . $headers['kms']['key']));
+            } else {
+                $kmsClinet = new KmsClient([
+                    "region" => $headers['kms']['region'],
+                    "version" => $headers['kms']['version'],
+                ]);
+                $result = $kmsClinet->decrypt([
+                    'CiphertextBlob' => base64_decode($headers['kms']['key']),
+                    'EncryptionContext' => $headers['kms']['context']
+                ]);
+                $secret = $result->get('Plaintext');
+                self::setCache("jwt." . $headers['kms']['key'], base64_encode($secret), 0);
+            }
         }
 
         $validationToken = implode('.', array($headers64, $claims64));
@@ -275,32 +283,48 @@ class Token
 
     /**
      * Get Token
+     *
+     * @param $secret
      * @param $cacheKey
      *
      * @return string
      */
-    public function getToken($cacheKey = null)
+    public function getToken($secret = null, $cacheKey = null)
     {
-        if ($cacheKey !== null && self::isCacheExists($cacheKey . "-key") && self::isCacheExists($cacheKey. "-secret")) {
-            $kmsKey = self::getCache($cacheKey . "-key");
-            $secret = base64_decode(self::getCache($cacheKey . "-secret"));
-        } else {
-            $kmsClinet = new KmsClient([
-                "region" => $this->kmsConfig['region'],
-                "version" => $this->kmsConfig['version'],
-            ]);
-            $kmsData = ["KeyId" => "alias/" . $this->kmsConfig['alias'], "KeySpec" => "AES_256", "EncryptionContext" => $this->getContext()];
-            $kmsResult = $kmsClinet->generateDataKey($kmsData);
-            $kmsKey = base64_encode($kmsResult->get("CiphertextBlob"));
-            $secret = $kmsResult->get('Plaintext');
-
-            if ($cacheKey !== null) {
-                self::setCache($cacheKey . "-key", $kmsKey);
-                self::setCache($cacheKey . "-secret", base64_encode($secret));
+        if (!empty($secret)) {
+            if (strlen($secret) < 8) {
+                throw new \InvalidArgumentException("Secret too short!");
             }
-        }
 
-        $this->setKMSHeaders($kmsKey);
+            if (!preg_match("#[0-9]+#", $secret)) {
+                throw new \InvalidArgumentException("Secret must include at least one number!");
+            }
+
+            if (!preg_match("#[a-zA-Z]+#", $secret)) {
+                throw new \InvalidArgumentException("Secret must include at least one letter!");
+            }
+        } else {
+            if ($cacheKey !== null && self::isCacheExists($cacheKey . "-key") && self::isCacheExists($cacheKey . "-secret")) {
+                $kmsKey = self::getCache($cacheKey . "-key");
+                $secret = base64_decode(self::getCache($cacheKey . "-secret"));
+            } else {
+                $kmsClinet = new KmsClient([
+                    "region" => $this->kmsConfig['region'],
+                    "version" => $this->kmsConfig['version'],
+                ]);
+                $kmsData = ["KeyId" => "alias/" . $this->kmsConfig['alias'], "KeySpec" => "AES_256", "EncryptionContext" => $this->getContext()];
+                $kmsResult = $kmsClinet->generateDataKey($kmsData);
+                $kmsKey = base64_encode($kmsResult->get("CiphertextBlob"));
+                $secret = $kmsResult->get('Plaintext');
+
+                if ($cacheKey !== null) {
+                    self::setCache($cacheKey . "-key", $kmsKey);
+                    self::setCache($cacheKey . "-secret", base64_encode($secret));
+                }
+            }
+
+            $this->setKMSHeaders($kmsKey);
+        }
         $this->setId(uniqid("JWT", true));
         $this->setIssueAt();
         if (!empty($this->expiry)) {
