@@ -8,6 +8,7 @@ class Token
     public $headers = array();
     public $claims = array();
     private $expiry;
+    private $secret = null;
 
     private $kmsConfig = [ "region" => "us-west-2", "version" => "2014-11-01", "alias" => "rw-jwt" ];
     private $context = ["type" => "JWT-KMS", "version" => "v1.0.0"];
@@ -125,6 +126,39 @@ class Token
     public function setExpiry($seconds)
     {
         $this->expiry = $seconds;
+    }
+
+    /**
+     * Set Secret
+     * @param $secret
+     *
+     * @return $this
+     */
+    public function setSecret($secret)
+    {
+        if (strlen($secret) < 8) {
+            throw new \InvalidArgumentException("Secret too short!");
+        }
+
+        if (!preg_match("#[0-9]+#", $secret)) {
+            throw new \InvalidArgumentException("Secret must include at least one number!");
+        }
+
+        if (!preg_match("#[a-zA-Z]+#", $secret)) {
+            throw new \InvalidArgumentException("Secret must include at least one letter!");
+        }
+
+        $this->secret = $secret;
+        return $this;
+    }
+
+    /**
+     * Get Secret
+     * @return string
+     */
+    public function getSecret()
+    {
+        return $this->secret;
     }
 
     /**
@@ -284,26 +318,13 @@ class Token
     /**
      * Get Token
      *
-     * @param $secret
      * @param $cacheKey
      *
      * @return string
      */
-    public function getToken($secret = null, $cacheKey = null)
+    public function getToken($cacheKey = null)
     {
-        if (!empty($secret)) {
-            if (strlen($secret) < 8) {
-                throw new \InvalidArgumentException("Secret too short!");
-            }
-
-            if (!preg_match("#[0-9]+#", $secret)) {
-                throw new \InvalidArgumentException("Secret must include at least one number!");
-            }
-
-            if (!preg_match("#[a-zA-Z]+#", $secret)) {
-                throw new \InvalidArgumentException("Secret must include at least one letter!");
-            }
-        } else {
+        if (empty($this->getSecret())) {
             if ($cacheKey !== null && self::isCacheExists($cacheKey . "-key") && self::isCacheExists($cacheKey . "-secret")) {
                 $kmsKey = self::getCache($cacheKey . "-key");
                 $secret = base64_decode(self::getCache($cacheKey . "-secret"));
@@ -324,7 +345,10 @@ class Token
             }
 
             $this->setKMSHeaders($kmsKey);
+        } else {
+            $secret = $this->getSecret();
         }
+
         $this->setId(uniqid("JWT", true));
         $this->setIssueAt();
         if (!empty($this->expiry)) {
