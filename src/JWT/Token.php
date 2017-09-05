@@ -147,10 +147,13 @@ class Token
     /**
      * Set # of seconds before the token considered expire
      * @param $seconds
+     *
+     * @return $this
      */
     public function setExpiry($seconds)
     {
         $this->expiry = $seconds;
+        return $this;
     }
 
     /**
@@ -320,6 +323,7 @@ class Token
     public function setIssueAt()
     {
         $this->claims['iat'] = time();
+        return $this;
     }
 
     /**
