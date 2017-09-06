@@ -472,7 +472,9 @@ class Token
      */
     private static function setCache($k, $v, $ttl = 3600)
     {
-        apcu_store($k, $v, 3600);
+        if (function_exists("apcu_store")) {
+            apcu_store($k, $v, $ttl);
+        }
     }
 
     /**
@@ -483,7 +485,11 @@ class Token
      */
     private static function getCache($k)
     {
-        return apcu_fetch($k);
+        if (function_exists("apcu_fetch")) {
+            return apcu_fetch($k);
+        }
+
+        return null;
     }
 
     /**
@@ -494,7 +500,11 @@ class Token
      */
     private static function isCacheExists($k)
     {
-        return apcu_exists($k);
+        if (function_exists("apcu_exists")) {
+            return  apcu_exists($k);
+        }
+
+        return false;
     }
 
     /**
