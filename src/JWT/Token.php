@@ -94,9 +94,12 @@ class Token
      */
     public function setCacheKey($key)
     {
-        if (empty($key) || !ctype_alnum($key)) {
+        $exceptList = ['-', '_'];
+        $validationKey = str_replace($exceptList, "", $key);
+        if (empty($validationKey) || !ctype_alnum($validationKey)) {
             throw new \InvalidArgumentException("Invalid cache key.");
         }
+        //only [a-zA-z0-9-_] allowed
         $this->cacheKey = $key;
 
         return $this;
