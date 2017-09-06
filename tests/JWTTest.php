@@ -24,10 +24,12 @@ class JWTTest extends \PHPUnit\Framework\TestCase
      */
     public function testValidation($token)
     {
-        $validator = \RW\JWT\Token::init($token);
-        $payload = $validator->validate("super-01-secret")->getPayload();
+        $validator = \RW\JWT\Token::init($token)->validate("super-01-secret");
+        $payload = $validator->getPayload();
 
         $this->assertSame($payload['hello'], "world");
+        $this->assertSame($validator->getIssuer(), "carambola");
+        $this->assertSame($validator->getAudience(), "jackfruit");
     }
 
     /**
