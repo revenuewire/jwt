@@ -16,7 +16,8 @@ echo $token . "\n";
 
 ### JWT Validation
 ```php
-$validator = \RW\JWT\Token::init($token, "super-01-secret");
-$payload = $validator->getPayload();
+$validator = \RW\JWT\Token::init($token);
+$payload = $validator->validate("super-01-secret")
+                ->getPayload();
 print_r($payload);
 ```

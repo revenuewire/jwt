@@ -14,6 +14,8 @@ class Token
     private $kmsConfig = [ "region" => "us-west-2", "version" => "2014-11-01", "alias" => "rw-jwt" ];
     private $context = ["type" => "JWT-KMS", "version" => "v1.0.0"];
 
+    private $token = null;
+
     /**
      * JWT constructor.
      */
@@ -31,15 +33,37 @@ class Token
      * Init token
      *
      * @param $token
-     * @param $secret
      *
      * @return Token
      */
-    public static function init($token, $secret = null)
+    public static function init($token)
     {
         $fields = explode('.', $token);
         if (count($fields) != 3) {
-            throw new \InvalidArgumentException("Invalid Toke!");
+            throw new \InvalidArgumentException("Invalid Toke");
+        }
+        list($headers64, $claims64, $signature) = $fields;
+
+        $headers = json_decode(self::base64urlDecode($headers64), true);
+
+        $jwt = new Token();
+        $jwt->token = $token;
+        $jwt->headers = $headers;
+
+        return $jwt;
+    }
+
+    /**
+     * Validate token
+     *
+     * @param null $secret
+     * @return $this
+     */
+    public function validate($secret = null)
+    {
+        $fields = explode('.', $this->token);
+        if (count($fields) != 3) {
+            throw new \InvalidArgumentException("Invalid Toke");
         }
         list($headers64, $claims64, $signature) = $fields;
 
@@ -68,23 +92,17 @@ class Token
 
         $validationToken = implode('.', array($headers64, $claims64));
         if ($signature !== self::getSignature($validationToken, $secret)) {
-            throw new \InvalidArgumentException("Invalid token");
+            throw new \InvalidArgumentException("Token verification failed");
         }
 
         $claims = json_decode(self::base64urlDecode($claims64), true);
         if (!empty($claims['exp']) && $claims['exp'] > 0 && $claims['exp'] < time()) {
-            throw new \InvalidArgumentException("Token expired.");
+            throw new \InvalidArgumentException("Token expired");
         }
 
-        /**
-         * After this point, the token is validated and we can return the token object
-         */
-        $jwt = new Token();
+        $this->claims = $claims;
 
-        $jwt->claims = $claims;
-        $jwt->headers = $headers;
-
-        return $jwt;
+        return $this;
     }
 
     /**

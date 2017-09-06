@@ -2,19 +2,6 @@
 class JWTTest extends \PHPUnit\Framework\TestCase
 {
     /**
-     * Set up
-     */
-    public static function setUpBeforeClass()
-    {
-
-    }
-
-    public static function tearDownAfterClass()
-    {
-
-    }
-
-    /**
      * @return string
      */
     public function testToken()
@@ -37,8 +24,9 @@ class JWTTest extends \PHPUnit\Framework\TestCase
      */
     public function testValidation($token)
     {
-        $validator = \RW\JWT\Token::init($token, "super-01-secret");
-        $payload = $validator->getPayload();
+        $validator = \RW\JWT\Token::init($token);
+        $payload = $validator->validate("super-01-secret")->getPayload();
+
         $this->assertSame($payload['hello'], "world");
     }
 
@@ -46,22 +34,22 @@ class JWTTest extends \PHPUnit\Framework\TestCase
      * @depends testToken
      * @param $token
      * @expectedException InvalidArgumentException
-     * @expectedExceptionMessage Invalid token
+     * @expectedExceptionMessage Token verification failed
      */
     public function testValidationFailed($token)
     {
-        $validator = \RW\JWT\Token::init($token, "super-02-secret");
+        $validator = \RW\JWT\Token::init($token)->validate("super-02-secret")->getPayload();
     }
 
     /**
      * @depends testToken
      * @param $token
      * @expectedException InvalidArgumentException
-     * @expectedExceptionMessage Token expired.
+     * @expectedExceptionMessage Token expired
      */
     public function testTokenExpired($token)
     {
         sleep(6);
-        $validator = \RW\JWT\Token::init($token, "super-01-secret");
+        $validator = \RW\JWT\Token::init($token)->validate("super-01-secret")->getPayload();
     }
 }
