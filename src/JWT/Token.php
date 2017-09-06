@@ -366,6 +366,16 @@ class Token
     }
 
     /**
+     * Has KMS Headers
+     *
+     * @return bool
+     */
+    public function hasKMSHeaders()
+    {
+        return !empty($this->headers['kms']);
+    }
+
+    /**
      * Get Token
      *
      * @return string
