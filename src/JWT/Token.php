@@ -2,19 +2,17 @@
 namespace RW\JWT;
 
 use Aws\Kms\KmsClient;
+use RW\JWT\Helpers\Base64Url;
 
 class Token
 {
     public $headers = array();
-    public $claims = array();
+
+    private $claims = array();
     private $expiry;
     private $secret = null;
-    private $cacheKey = null;
-
-    private $kmsConfig = [ "region" => "us-west-2", "version" => "2014-11-01", "alias" => "rw-jwt" ];
-    private $context = ["type" => "JWT-KMS", "version" => "v1.0.0"];
-
     private $token = null;
+    private $isValidated = false;
 
     /**
      * JWT constructor.
@@ -44,11 +42,13 @@ class Token
         }
         list($headers64, $claims64, $signature) = $fields;
 
-        $headers = json_decode(self::base64urlDecode($headers64), true);
+        $headers = json_decode(Base64Url::decode($headers64), true);
+        $claims = json_decode(Base64Url::decode($claims64), true);
 
         $jwt = new Token();
         $jwt->token = $token;
         $jwt->headers = $headers;
+        $jwt->claims = $claims;
 
         return $jwt;
     }
@@ -56,10 +56,9 @@ class Token
     /**
      * Validate token
      *
-     * @param null $secret
      * @return $this
      */
-    public function validate($secret = null)
+    public function validate()
     {
         $fields = explode('.', $this->token);
         if (count($fields) != 3) {
@@ -67,102 +66,18 @@ class Token
         }
         list($headers64, $claims64, $signature) = $fields;
 
-        $headers = json_decode(self::base64urlDecode($headers64), true);
-
-        if (empty($secret)) {
-            if (empty($headers['kms']['key'])) {
-                throw new \InvalidArgumentException("KMS key must exists if secret is empty.");
-            }
-
-            if (self::isCacheExists("jwt." . $headers['kms']['key'])) {
-                $secret = base64_decode(self::getCache("jwt." . $headers['kms']['key']));
-            } else {
-                $kmsClinet = new KmsClient([
-                    "region" => $headers['kms']['region'],
-                    "version" => $headers['kms']['version'],
-                ]);
-                $result = $kmsClinet->decrypt([
-                    'CiphertextBlob' => base64_decode($headers['kms']['key']),
-                    'EncryptionContext' => $headers['kms']['context']
-                ]);
-                $secret = $result->get('Plaintext');
-                self::setCache("jwt." . $headers['kms']['key'], base64_encode($secret), 0);
-            }
-        }
-
         $validationToken = implode('.', array($headers64, $claims64));
-        if ($signature !== self::getSignature($validationToken, $secret)) {
+        if ($signature !== self::getSignature($validationToken, $this->getSecret())) {
             throw new \InvalidArgumentException("Token verification failed");
         }
 
-        $claims = json_decode(self::base64urlDecode($claims64), true);
+        $claims = json_decode(Base64Url::decode($claims64), true);
         if (!empty($claims['exp']) && $claims['exp'] > 0 && $claims['exp'] < time()) {
             throw new \InvalidArgumentException("Token expired");
         }
 
-        $this->claims = $claims;
-
+        $this->isValidated = true;
         return $this;
-    }
-
-    /**
-     * Set Cache Key
-     * @param $key
-     * @return $this
-     */
-    public function setCacheKey($key)
-    {
-        $exceptList = ['-', '_'];
-        $validationKey = str_replace($exceptList, "", $key);
-        if (empty($validationKey) || !ctype_alnum($validationKey)) {
-            throw new \InvalidArgumentException("Invalid cache key.");
-        }
-        //only [a-zA-z0-9-_] allowed
-        $this->cacheKey = $key;
-
-        return $this;
-    }
-
-    /**
-     * Get Cache Key
-     * @return null
-     */
-    public function getCacheKey()
-    {
-        return $this->cacheKey;
-    }
-
-    /**
-     * Set KMS configuration
-     *
-     * @param array $kms
-     * @return $this
-     */
-    public function setKMS(array $kms)
-    {
-        $this->kmsConfig = array_merge_recursive($this->kmsConfig, $kms);
-        return $this;
-    }
-
-    /**
-     * Set Context
-     * @param array $context
-     * @return $this
-     */
-    public function setContext(array $context)
-    {
-        $this->context = array_merge_recursive($this->context, $context);
-        return $this;
-    }
-
-    /**
-     * get Context
-     *
-     * @return array
-     */
-    public function getContext()
-    {
-        return $this->context;
     }
 
     /**
@@ -185,16 +100,18 @@ class Token
      */
     public function setSecret($secret)
     {
-        if (strlen($secret) < 8) {
-            throw new \InvalidArgumentException("Secret too short!");
-        }
+        if ($this->getAlg() !== "KMS") {
+            if (strlen($secret) < 8) {
+                throw new \InvalidArgumentException("Secret too short!");
+            }
 
-        if (!preg_match("#[0-9]+#", $secret)) {
-            throw new \InvalidArgumentException("Secret must include at least one number!");
-        }
+            if (!preg_match("#[0-9]+#", $secret)) {
+                throw new \InvalidArgumentException("Secret must include at least one number!");
+            }
 
-        if (!preg_match("#[a-zA-Z]+#", $secret)) {
-            throw new \InvalidArgumentException("Secret must include at least one letter!");
+            if (!preg_match("#[a-zA-Z]+#", $secret)) {
+                throw new \InvalidArgumentException("Secret must include at least one letter!");
+            }
         }
 
         $this->secret = $secret;
@@ -348,75 +265,22 @@ class Token
     }
 
     /**
-     * Set KMS Header
-     *
-     * @param $key
-     * @return $this
-     */
-    private function setKMSHeaders($key)
-    {
-        $this->headers['kms'] = [
-            'region' => $this->kmsConfig['region'],
-            'version' => $this->kmsConfig['version'],
-            'alias' => $this->kmsConfig['alias'],
-            'context' => $this->getContext(),
-            'key' => $key
-        ];
-        return $this;
-    }
-
-    /**
-     * Has KMS Headers
-     *
-     * @return bool
-     */
-    public function hasKMSHeaders()
-    {
-        return !empty($this->headers['kms']);
-    }
-
-    /**
      * Get Token
      *
      * @return string
      */
     public function getToken()
     {
-        if (empty($this->getSecret())) {
-            if (!empty($this->getCacheKey()) && self::isCacheExists($this->getCacheKey() . "-key") && self::isCacheExists($this->getCacheKey() . "-secret")) {
-                $kmsKey = self::getCache($this->getCacheKey() . "-key");
-                $secret = base64_decode(self::getCache($this->getCacheKey() . "-secret"));
-            } else {
-                $kmsClinet = new KmsClient([
-                    "region" => $this->kmsConfig['region'],
-                    "version" => $this->kmsConfig['version'],
-                ]);
-                $kmsData = ["KeyId" => "alias/" . $this->kmsConfig['alias'], "KeySpec" => "AES_256", "EncryptionContext" => $this->getContext()];
-                $kmsResult = $kmsClinet->generateDataKey($kmsData);
-                $kmsKey = base64_encode($kmsResult->get("CiphertextBlob"));
-                $secret = $kmsResult->get('Plaintext');
-
-                if (!empty($this->getCacheKey())) {
-                    self::setCache($this->getCacheKey() . "-key", $kmsKey);
-                    self::setCache($this->getCacheKey() . "-secret", base64_encode($secret));
-                }
-            }
-
-            $this->setKMSHeaders($kmsKey);
-        } else {
-            $secret = $this->getSecret();
-        }
-
         $this->setId(uniqid("JWT", true));
         $this->setIssueAt();
         if (!empty($this->expiry)) {
             $this->setExpirationTime(time() + $this->expiry);
         }
 
-        $header = self::base64urlEncode(json_encode($this->headers));
-        $payload = self::base64urlEncode(json_encode($this->claims));
+        $header = Base64Url::encode(json_encode($this->headers));
+        $payload = Base64Url::encode(json_encode($this->claims));
         $token = $header . '.' . $payload;
-        $signature = self::getSignature($token, $secret);
+        $signature = self::getSignature($token, $this->getSecret());
 
         return $token . '.' . $signature;
     }
@@ -448,7 +312,29 @@ class Token
      */
     public function getPayload()
     {
-        return $this->claims;
+        if ($this->isValidated) {
+            return $this->claims;
+        }
+
+        throw new \InvalidArgumentException("Cannot access payload without validation.");
+    }
+
+    /**
+     * @return null
+     */
+    public function getKid()
+    {
+        return !empty($this->headers['kid']) ? $this->headers['kid'] : null;
+    }
+
+    /**
+     * @param null $kid
+     * @return $this
+     */
+    public function setKid($kid)
+    {
+        $this->headers['kid'] = $kid;
+        return $this;
     }
 
     /**
@@ -461,76 +347,25 @@ class Token
      */
     private static function getSignature($token, $secret)
     {
-        return self::base64urlEncode(hash_hmac("sha256", $token, $secret, true));
+        return Base64Url::encode(hash_hmac("sha256", $token, $secret, true));
     }
 
     /**
-     * Set Cache
-     *
-     * @param $k
-     * @param $v
-     */
-    private static function setCache($k, $v, $ttl = 3600)
-    {
-        if (function_exists("apcu_store")) {
-            apcu_store($k, $v, $ttl);
-        }
-    }
-
-    /**
-     * Get Cache
-     *
-     * @param $k
-     * @return mixed
-     */
-    private static function getCache($k)
-    {
-        if (function_exists("apcu_fetch")) {
-            return apcu_fetch($k);
-        }
-
-        return null;
-    }
-
-    /**
-     * Is Cache Exists
-     *
-     * @param $k
-     * @return bool|string[]
-     */
-    private static function isCacheExists($k)
-    {
-        if (function_exists("apcu_exists")) {
-            return  apcu_exists($k);
-        }
-
-        return false;
-    }
-
-    /**
-     * To Encode a url
-     *
-     * @param $data
      * @return string
      */
-    public static function base64urlEncode($data)
+    public function getAlg()
     {
-        return str_replace('=', '', strtr(base64_encode($data), '+/', '-_'));
+        return !empty($this->headers['alg']) ? $this->headers['alg'] : null;
     }
 
     /**
-     * To Decode a url
-     *
-     * @param $data
-     * @return string
+     * @param string $alg
+     * @return Token
      */
-    public static function base64urlDecode($data)
+    public function setAlg($alg)
     {
-        $remainder = strlen($data) % 4;
-        if ($remainder) {
-            $padlen = 4 - $remainder;
-            $data .= str_repeat('=', $padlen);
-        }
-        return base64_decode(strtr($data, '-_', '+/'));
+        $this->headers['alg'] = $alg;
+        return $this;
     }
+
 }

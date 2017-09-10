@@ -24,11 +24,16 @@ class JWTTest extends \PHPUnit\Framework\TestCase
      */
     public function testKMSToken()
     {
+        $kms = new \RW\JWT\Helpers\KMS();
+        $kms->generateDataKey();
+
         $jwt = new \RW\JWT\Token();
         $jwt->setIssuer('carambola')
             ->setAudience('jackfruit')
+            ->setKid($kms->getKid())
+            ->setAlg('KMS')
+            ->setSecret($kms->getPlaintext())
             ->setPayload(array("hello" => "kms"))
-            ->setCacheKey("kms-test")
             ->setExpiry(5);
         $token = $jwt->getToken();
         $this->assertNotEmpty($token);
@@ -43,8 +48,8 @@ class JWTTest extends \PHPUnit\Framework\TestCase
     public function testValidationKMS($token)
     {
         $jwt = \RW\JWT\Token::init($token);
-        $this->assertSame($jwt->hasKMSHeaders(), true);
-        $jwt = $jwt->validate();
+        $jwt->setSecret(\RW\JWT\Helpers\KMS::decrypt($jwt->getKid()))
+            ->validate();
 
         $payload = $jwt->getPayload();
 
@@ -59,7 +64,9 @@ class JWTTest extends \PHPUnit\Framework\TestCase
      */
     public function testValidation($token)
     {
-        $validator = \RW\JWT\Token::init($token)->validate("super-01-secret");
+        $validator = \RW\JWT\Token::init($token)
+                        ->setSecret("super-01-secret")
+                        ->validate();
         $payload = $validator->getPayload();
 
         $this->assertSame($payload['hello'], "world");
@@ -75,7 +82,10 @@ class JWTTest extends \PHPUnit\Framework\TestCase
      */
     public function testValidationFailed($token)
     {
-        $validator = \RW\JWT\Token::init($token)->validate("super-02-secret")->getPayload();
+        $validator = \RW\JWT\Token::init($token)
+                        ->setSecret("super-02-secret")
+                        ->validate()
+                        ->getPayload();
     }
 
     /**
@@ -87,6 +97,9 @@ class JWTTest extends \PHPUnit\Framework\TestCase
     public function testTokenExpired($token)
     {
         sleep(6);
-        $validator = \RW\JWT\Token::init($token)->validate("super-01-secret")->getPayload();
+        $validator = \RW\JWT\Token::init($token)
+                        ->setSecret("super-01-secret")
+                        ->validate()
+                        ->getPayload();
     }
 }
