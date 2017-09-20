@@ -25,7 +25,8 @@ class JWTTest extends \PHPUnit\Framework\TestCase
     public function testKMSToken()
     {
         $kms = new \RW\JWT\Helpers\KMS();
-        $kms->generateDataKey();
+        $kms->setRegion("us-west-1")
+            ->generateDataKey();
 
         $jwt = new \RW\JWT\Token();
         $jwt->setIssuer('carambola')

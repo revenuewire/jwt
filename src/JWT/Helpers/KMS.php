@@ -12,7 +12,7 @@ class KMS
     private $ciphertextBlob;
     private $plaintext;
     private $keyRotation = 3600;
-    private $cacheKey = "kms-oS7I426LX1";
+    private $cacheKey = "kms-oS7I426LX2";
 
     function __construct()
     {

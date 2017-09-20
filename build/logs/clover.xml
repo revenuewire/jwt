@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<coverage generated="1505945751">
-  <project timestamp="1505945751">
+<coverage generated="1505946255">
+  <project timestamp="1505946255">
     <package name="RW\JWT\Helpers">
       <file name="/Users/swang/code/jwt/src/JWT/Helpers/Base64Url.php">
         <class name="Base64Url" namespace="RW\JWT\Helpers">
@@ -34,7 +34,7 @@
       </file>
       <file name="/Users/swang/code/jwt/src/JWT/Helpers/KMS.php">
         <class name="KMS" namespace="RW\JWT\Helpers">
-          <metrics complexity="24" methods="18" coveredmethods="10" conditionals="0" coveredconditionals="0" statements="51" coveredstatements="32" elements="69" coveredelements="42"/>
+          <metrics complexity="24" methods="18" coveredmethods="11" conditionals="0" coveredconditionals="0" statements="51" coveredstatements="34" elements="69" coveredelements="45"/>
         </class>
         <line num="17" type="method" name="__construct" complexity="1" crap="1" count="1"/>
         <line num="19" type="stmt" count="1"/>
@@ -64,9 +64,9 @@
         <line num="74" type="stmt" count="1"/>
         <line num="80" type="method" name="getRegion" visibility="public" complexity="1" crap="1" count="1"/>
         <line num="82" type="stmt" count="1"/>
-        <line num="89" type="method" name="setRegion" visibility="public" complexity="1" crap="2" count="0"/>
-        <line num="91" type="stmt" count="0"/>
-        <line num="92" type="stmt" count="0"/>
+        <line num="89" type="method" name="setRegion" visibility="public" complexity="1" crap="1" count="1"/>
+        <line num="91" type="stmt" count="1"/>
+        <line num="92" type="stmt" count="1"/>
         <line num="98" type="method" name="getVersion" visibility="public" complexity="1" crap="1" count="1"/>
         <line num="100" type="stmt" count="1"/>
         <line num="107" type="method" name="setVersion" visibility="public" complexity="1" crap="2" count="0"/>
@@ -105,7 +105,7 @@
         <line num="212" type="stmt" count="0"/>
         <line num="214" type="stmt" count="0"/>
         <line num="215" type="stmt" count="0"/>
-        <metrics loc="216" ncloc="149" classes="1" methods="18" coveredmethods="10" conditionals="0" coveredconditionals="0" statements="51" coveredstatements="32" elements="69" coveredelements="42"/>
+        <metrics loc="216" ncloc="149" classes="1" methods="18" coveredmethods="11" conditionals="0" coveredconditionals="0" statements="51" coveredstatements="34" elements="69" coveredelements="45"/>
       </file>
     </package>
     <package name="RW\JWT">
@@ -210,6 +210,6 @@
         <metrics loc="370" ncloc="202" classes="1" methods="22" coveredmethods="17" conditionals="0" coveredconditionals="0" statements="72" coveredstatements="64" elements="94" coveredelements="81"/>
       </file>
     </package>
-    <metrics files="4" loc="661" ncloc="390" classes="4" methods="44" coveredmethods="31" conditionals="0" coveredconditionals="0" statements="137" coveredstatements="110" elements="181" coveredelements="141"/>
+    <metrics files="4" loc="661" ncloc="390" classes="4" methods="44" coveredmethods="32" conditionals="0" coveredconditionals="0" statements="137" coveredstatements="112" elements="181" coveredelements="144"/>
   </project>
 </coverage>
