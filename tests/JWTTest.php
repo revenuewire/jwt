@@ -32,7 +32,6 @@ class JWTTest extends \PHPUnit\Framework\TestCase
         $jwt->setIssuer('carambola')
             ->setAudience('jackfruit')
             ->setKid($kms->getKid())
-            ->setAlg('KMS')
             ->setSecret($kms->getPlaintext())
             ->setPayload(array("hello" => "kms"))
             ->setExpiry(5);
