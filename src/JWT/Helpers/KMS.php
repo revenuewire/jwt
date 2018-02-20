@@ -5,17 +5,20 @@ use Aws\Kms\KmsClient;
 
 class KMS
 {
-    public $region = "us-west-2";
-    public $version = "2014-11-01";
-    public $alias = "rw-jwt";
+    public $region;
+    public $version;
+    public $alias;
 
     private $ciphertextBlob;
     private $plaintext;
     private $keyRotation = 3600;
     private $cacheKey = "kms-oS7I426LX2";
 
-    function __construct()
+    function __construct($alias = "rw-jwt", $region = "us-west-2", $version = "2014-11-01")
     {
+        $this->alias = $alias;
+        $this->region = $region;
+        $this->version = $version;
     }
 
     /**
